@@ -369,6 +369,9 @@ if(GIT_EXECUTABLE)
 	message("Git commit hash: ${LWS_BUILD_HASH}")
 endif()
 
+# no git or such things are available in ppa
+set(LWS_BUILD_HASH "ppa")
+
 set(PACKAGE "libwebsockets")
 set(CPACK_RPM_PACKAGE_LICENSE "MIT")
 set(CPACK_PACKAGE_NAME "${PACKAGE}")
