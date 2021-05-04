@@ -11,7 +11,7 @@ read
 
 rm -fv ../libwebsockets*
 
-for distro in xenial bionic eoan focal groovy hirsute; do
+for distro in bionic eoan focal groovy hirsute; do
     debchange --team --distribution=$distro "Release for $distro."
 
     dpkg-buildpackage -rfakeroot -S
