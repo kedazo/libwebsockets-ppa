@@ -1,15 +1,14 @@
 Source: libwebsockets
 Section: libs
 Priority: optional
-Maintainer: Laszlo Boszormenyi (GCS) <gcs@debian.org>
-Uploaders: Peter Pentchev <roam@ringlet.net>
+Maintainer: David Kedves <kedazo@severalnines.com>
 Build-Depends: debhelper-compat (= 11), cmake, libcap-dev [linux-any],
  libev-dev, libssl-dev, libuv1-dev, openssl, zlib1g-dev
 Standards-Version: 4.5.0
 Homepage: https://libwebsockets.org/
 Rules-Requires-Root: no
 
-Package: libwebsockets16
+Package: libwebsockets18
 Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
@@ -24,7 +23,7 @@ Package: libwebsockets-dev
 Section: libdevel
 Architecture: any
 Multi-Arch: same
-Depends: libwebsockets16 (= ${binary:Version}), libev-dev, libssl-dev,
+Depends: libwebsockets18 (= ${binary:Version}), libev-dev, libssl-dev,
 	libuv1-dev, zlib1g-dev, libcap-dev [linux-any], ${misc:Depends}
 Description: lightweight C websockets library - development files
  Libwebsockets is a lightweight pure C library for both websockets
@@ -38,7 +37,7 @@ Package: libwebsockets-test-server
 Section: utils
 Architecture: any
 Multi-Arch: foreign
-Depends: libwebsockets16 (= ${binary:Version}),
+Depends: libwebsockets18 (= ${binary:Version}),
 	libwebsockets-test-server-common (= ${source:Version}),
 	${shlibs:Depends}, ${misc:Depends}
 Description: lightweight C websockets library - test servers
