@@ -1,3 +1,9 @@
+libwebsockets (4.2.0-1) unstable; urgency=medium
+
+  * Imported v4.2.0 tag from upstream
+
+ -- David Kedves <kedazo@severalnines.com>  Tue, 04 May 2021 09:39:38 +0200
+
 libwebsockets (4.0.20-1) unstable; urgency=medium
 
   * New upstream release.
