@@ -25,6 +25,7 @@
  */
 
 #include <mbedtls/x509_crl.h>
+#include <errno.h>
 
 struct lws_x509_cert {
 	mbedtls_x509_crt cert; /* has a .next for linked-list / chain */
@@ -35,3 +36,6 @@ lws_gencrypto_mbedtls_hash_to_MD_TYPE(enum lws_genhash_types hash_type);
 
 int
 lws_gencrypto_mbedtls_rngf(void *context, unsigned char *buf, size_t len);
+
+int
+lws_tls_session_new_mbedtls(struct lws *wsi);

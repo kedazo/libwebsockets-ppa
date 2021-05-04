@@ -42,8 +42,9 @@ lws_tls_fake_POLLIN_for_buffered(struct lws_context_per_thread *pt)
 
 		if (wsi->position_in_fds_table >= 0) {
 
-			pt->fds[wsi->position_in_fds_table].revents |=
-					pt->fds[wsi->position_in_fds_table].events & LWS_POLLIN;
+			pt->fds[wsi->position_in_fds_table].revents = (short)
+				(pt->fds[wsi->position_in_fds_table].revents |
+				 (pt->fds[wsi->position_in_fds_table].events & LWS_POLLIN));
 			ret |= pt->fds[wsi->position_in_fds_table].revents & LWS_POLLIN;
 		}
 
@@ -61,7 +62,7 @@ __lws_ssl_remove_wsi_from_buffered_list(struct lws *wsi)
 void
 lws_ssl_remove_wsi_from_buffered_list(struct lws *wsi)
 {
-	struct lws_context_per_thread *pt = &wsi->context->pt[(int)wsi->tsi];
+	struct lws_context_per_thread *pt = &wsi->a.context->pt[(int)wsi->tsi];
 
 	lws_pt_lock(pt, __func__);
 	__lws_ssl_remove_wsi_from_buffered_list(wsi);
@@ -141,10 +142,10 @@ lws_tls_generic_cert_checks(struct lws_vhost *vhost, const char *cert,
 	if (!cert || !private_key)
 		return LWS_TLS_EXTANT_NO;
 
-	n = lws_tls_use_any_upgrade_check_extant(cert);
+	n = (int)lws_tls_use_any_upgrade_check_extant(cert);
 	if (n == LWS_TLS_EXTANT_ALTERNATIVE)
 		return LWS_TLS_EXTANT_ALTERNATIVE;
-	m = lws_tls_use_any_upgrade_check_extant(private_key);
+	m = (int)lws_tls_use_any_upgrade_check_extant(private_key);
 	if (m == LWS_TLS_EXTANT_ALTERNATIVE)
 		return LWS_TLS_EXTANT_ALTERNATIVE;
 
@@ -175,10 +176,10 @@ lws_tls_cert_updated(struct lws_context *context, const char *certpath,
 {
 	struct lws wsi;
 
-	wsi.context = context;
+	wsi.a.context = context;
 
 	lws_start_foreach_ll(struct lws_vhost *, v, context->vhost_list) {
-		wsi.vhost = v; /* not a real bound wsi */
+		wsi.a.vhost = v; /* not a real bound wsi */
 		if (v->tls.alloc_cert_path && v->tls.key_path &&
 		    !strcmp(v->tls.alloc_cert_path, certpath) &&
 		    !strcmp(v->tls.key_path, keypath)) {
@@ -202,10 +203,6 @@ lws_gate_accepts(struct lws_context *context, int on)
 	struct lws_vhost *v = context->vhost_list;
 
 	lwsl_notice("%s: on = %d\n", __func__, on);
-
-#if defined(LWS_WITH_STATS)
-	context->updated = 1;
-#endif
 
 	while (v) {
 		if (v->tls.use_ssl && v->lserv_wsi &&
@@ -240,17 +237,17 @@ lws_alpn_comma_to_openssl(const char *comma, uint8_t *os, int len)
 		}
 
 		if (*comma == ',') {
-			*plen = lws_ptr_diff(os, plen + 1);
+			*plen = (uint8_t)lws_ptr_diff(os, plen + 1);
 			plen = NULL;
 			comma++;
 		} else {
-			*os++ = *comma++;
+			*os++ = (uint8_t)*comma++;
 			len--;
 		}
 	}
 
 	if (plen)
-		*plen = lws_ptr_diff(os, plen + 1);
+		*plen = (uint8_t)lws_ptr_diff(os, plen + 1);
 
 	*os = 0;
 

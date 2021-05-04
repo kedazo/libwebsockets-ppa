@@ -57,9 +57,6 @@ int lws_ws_client_rx_sm(struct lws *wsi, unsigned char c)
 	}
 #endif
 
-	if (wsi->socket_is_permanently_unusable)
-		return -1;
-
 	switch (wsi->lws_rx_parse_state) {
 	case LWS_RXPS_NEW:
 		/* control frames (PING) may interrupt checkable sequences */
@@ -82,7 +79,7 @@ int lws_ws_client_rx_sm(struct lws *wsi, unsigned char c)
 #endif
 				wsi->ws->continuation_possible = 1;
 				wsi->ws->check_utf8 = lws_check_opt(
-					wsi->context->options,
+					wsi->a.context->options,
 					LWS_SERVER_OPTION_VALIDATE_UTF8);
 				wsi->ws->utf8 = 0;
 				wsi->ws->first_fragment = 1;
@@ -213,7 +210,7 @@ int lws_ws_client_rx_sm(struct lws *wsi, unsigned char c)
 		break;
 
 	case LWS_RXPS_04_FRAME_HDR_LEN16_2:
-		wsi->ws->rx_packet_length = c << 8;
+		wsi->ws->rx_packet_length = (size_t)((unsigned int)c << 8);
 		wsi->lws_rx_parse_state = LWS_RXPS_04_FRAME_HDR_LEN16_1;
 		break;
 
@@ -362,12 +359,12 @@ int lws_ws_client_rx_sm(struct lws *wsi, unsigned char c)
 		 * if there's no protocol max frame size given, we are
 		 * supposed to default to context->pt_serv_buf_size
 		 */
-		if (!wsi->protocol->rx_buffer_size &&
-		    wsi->ws->rx_ubuf_head != wsi->context->pt_serv_buf_size)
+		if (!wsi->a.protocol->rx_buffer_size &&
+		    wsi->ws->rx_ubuf_head != wsi->a.context->pt_serv_buf_size)
 			break;
 
-		if (wsi->protocol->rx_buffer_size &&
-		    wsi->ws->rx_ubuf_head != wsi->protocol->rx_buffer_size)
+		if (wsi->a.protocol->rx_buffer_size &&
+		    wsi->ws->rx_ubuf_head != wsi->a.protocol->rx_buffer_size)
 			break;
 
 		/* spill because we filled our rx buffer */
@@ -386,7 +383,7 @@ spill:
 		switch (wsi->ws->opcode) {
 		case LWSWSOPC_CLOSE:
 			pp = &wsi->ws->rx_ubuf[LWS_PRE];
-			if (lws_check_opt(wsi->context->options,
+			if (lws_check_opt(wsi->a.context->options,
 					  LWS_SERVER_OPTION_VALIDATE_UTF8) &&
 			    wsi->ws->rx_ubuf_head > 2 &&
 			    lws_check_utf8(&wsi->ws->utf8, pp + 2,
@@ -406,15 +403,11 @@ spill:
 			lwsl_parser("client sees server close len = %d\n",
 						 (int)wsi->ws->rx_ubuf_head);
 			if (wsi->ws->rx_ubuf_head >= 2) {
-				close_code = (pp[0] << 8) | pp[1];
+				close_code = (unsigned short)((pp[0] << 8) | pp[1]);
 				if (close_code < 1000 ||
 				    close_code == 1004 ||
 				    close_code == 1005 ||
 				    close_code == 1006 ||
-				    close_code == 1012 ||
-				    close_code == 1013 ||
-				    close_code == 1014 ||
-				    close_code == 1015 ||
 				    (close_code >= 1016 && close_code < 3000)
 				) {
 					pp[0] = (LWS_CLOSE_STATUS_PROTOCOL_ERR >> 8) & 0xff;
@@ -422,7 +415,7 @@ spill:
 				}
 			}
 			if (user_callback_handle_rxflow(
-					wsi->protocol->callback, wsi,
+					wsi->a.protocol->callback, wsi,
 					LWS_CALLBACK_WS_PEER_INITIATED_CLOSE,
 					wsi->user_space, pp,
 					wsi->ws->rx_ubuf_head))
@@ -431,7 +424,7 @@ spill:
 			memcpy(wsi->ws->ping_payload_buf + LWS_PRE, pp,
 			       wsi->ws->rx_ubuf_head);
 			wsi->ws->close_in_ping_buffer_len =
-					wsi->ws->rx_ubuf_head;
+					(uint8_t)wsi->ws->rx_ubuf_head;
 
 			lwsl_info("%s: scheduling return close as ack\n",
 				  __func__);
@@ -472,7 +465,7 @@ spill:
 			       &wsi->ws->rx_ubuf[LWS_PRE],
 			       wsi->ws->rx_ubuf_head);
 
-			wsi->ws->ping_payload_len = wsi->ws->rx_ubuf_head;
+			wsi->ws->ping_payload_len = (uint8_t)wsi->ws->rx_ubuf_head;
 			wsi->ws->ping_pending_flag = 1;
 
 			/* get it sent as soon as possible */
@@ -483,7 +476,7 @@ ping_drop:
 			break;
 
 		case LWSWSOPC_PONG:
-			lwsl_info("%s: client %p received pong\n", __func__, wsi);
+			lwsl_info("%s: %s received pong\n", __func__, lws_wsi_tag(wsi));
 			lwsl_hexdump(&wsi->ws->rx_ubuf[LWS_PRE],
 				     wsi->ws->rx_ubuf_head);
 
@@ -523,7 +516,7 @@ ping_drop:
 			goto already_done;
 
 		pmdrx.eb_in.token = &wsi->ws->rx_ubuf[LWS_PRE];
-		pmdrx.eb_in.len = wsi->ws->rx_ubuf_head;
+		pmdrx.eb_in.len = (int)wsi->ws->rx_ubuf_head;
 
 		/* for the non-pm-deflate case */
 
@@ -554,6 +547,7 @@ drain_extension:
 				return -1;
 			}
 			if (n == PMDR_DID_NOTHING)
+				/* ie, not PMDR_NOTHING_WE_SHOULD_DO */
 				break;
 #endif
 			lwsl_ext("%s: post inflate ebuf in len %d / out len %d\n",
@@ -582,7 +576,7 @@ drain_extension:
 
 				if (lws_check_utf8(&wsi->ws->utf8,
 						   pmdrx.eb_out.token,
-						   pmdrx.eb_out.len)) {
+						   (unsigned int)pmdrx.eb_out.len)) {
 					lws_close_reason(wsi,
 						LWS_CLOSE_STATUS_INVALID_PAYLOAD,
 						(uint8_t *)"bad utf8", 8);
@@ -604,7 +598,7 @@ drain_extension:
 utf8_fail:
 					lwsl_info("utf8 error\n");
 					lwsl_hexdump_info(pmdrx.eb_out.token,
-							  pmdrx.eb_out.len);
+							  (unsigned int)pmdrx.eb_out.len);
 
 					return -1;
 				}
@@ -619,7 +613,7 @@ utf8_fail:
 
 			pmdrx.eb_out.token[pmdrx.eb_out.len] = '\0';
 
-			if (!wsi->protocol->callback)
+			if (!wsi->a.protocol->callback)
 				goto already_done;
 
 			if (callback_action == LWS_CALLBACK_CLIENT_RECEIVE_PONG)
@@ -651,10 +645,10 @@ utf8_fail:
 			)
 				pmdrx.eb_in.len -= pmdrx.eb_out.len;
 
-			m = wsi->protocol->callback(wsi,
+			m = wsi->a.protocol->callback(wsi,
 					(enum lws_callback_reasons)callback_action,
 					wsi->user_space, pmdrx.eb_out.token,
-					pmdrx.eb_out.len);
+					(unsigned int)pmdrx.eb_out.len);
 
 			wsi->ws->first_fragment = 0;
 

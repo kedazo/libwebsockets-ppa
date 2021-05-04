@@ -1,7 +1,7 @@
 /*
  * lws-api-test-lws_tokenize
  *
- * Written in 2010-2019 by Andy Green <andy@warmcat.com>
+ * Written in 2010-2021 by Andy Green <andy@warmcat.com>
  *
  * This file is made available under the Creative Commons CC0 1.0
  * Universal Public Domain Dedication.
@@ -173,6 +173,10 @@ struct expected expected1[] = {
 	expected17[] = {
 		{ LWS_TOKZE_TOKEN, "hello", 5 },
 		{ LWS_TOKZE_ENDED, "", 0 },
+	},
+	expected18[] = {
+		{ LWS_TOKZE_TOKEN, "x=y", 3 },
+		{ LWS_TOKZE_ENDED, "", 0 },
 	}
 ;
 
@@ -204,7 +208,7 @@ struct tests tests[] = {
 	}, {
 		"fr-CH, fr;q=0.9, en;q=0.8, de;q=0.7, *;q=0.5",
 		expected7, LWS_ARRAY_SIZE(expected7),
-		LWS_TOKENIZE_F_RFC7230_DELIMS
+		LWS_TOKENIZE_F_ASTERISK_NONTERM | LWS_TOKENIZE_F_RFC7230_DELIMS
 	},
 	{
 		" Οὐχὶ ταὐτὰ παρίσταταί μοι γιγνώσκειν, ὦ ἄνδρες ᾿Αθηναῖοι, greek",
@@ -253,6 +257,10 @@ struct tests tests[] = {
 	{
 		"# comment1\r\nhello #comment2\r\n#comment3", expected17,
 		LWS_ARRAY_SIZE(expected17), LWS_TOKENIZE_F_HASH_COMMENT
+	},
+	{
+		"x=y", expected18,
+		LWS_ARRAY_SIZE(expected18), LWS_TOKENIZE_F_EQUALS_NONTERM
 	}
 };
 
@@ -299,7 +307,8 @@ expand:
 	if (total < budget)
 		budget = total;
 
-	memcpy(out + *pos, replace + (*exp_ofs), budget);
+	if (out)
+		memcpy(out + *pos, replace + (*exp_ofs), budget);
 	*exp_ofs += budget;
 	*pos += budget;
 
@@ -350,6 +359,17 @@ int main(int argc, const char **argv)
 		    strcmp(obuf, "this-is-a-replacement_string-for-strexp")) {
 			lwsl_notice("%s: obuf %s\n", __func__, obuf);
 			lwsl_err("%s: lws_strexp test 1 failed: %d\n", __func__, n);
+
+			return 1;
+		}
+
+		/* as above, but don't generate output, just find the length */
+
+		lws_strexp_init(&exp, NULL, exp_cb1, NULL, (size_t)-1);
+		n = lws_strexp_expand(&exp, exp_inp1, 28, &used_in, &used_out);
+		if (n != LSTRX_DONE || used_in != 28 || used_out != 39) {
+			lwsl_err("%s: lws_strexp test 2 failed: %d, used_out: %d\n",
+					__func__, n, (int)used_out);
 
 			return 1;
 		}
@@ -405,6 +425,74 @@ int main(int argc, const char **argv)
 		return 1;
 	}
 
+	/* sanity check lws_nstrstr() */
+
+	{
+		static const char *t1 = "abc123456";
+		const char *mcp;
+
+		mcp = lws_nstrstr(t1, strlen(t1), "abc", 3);
+		if (mcp != t1) {
+			lwsl_err("%s: lws_nstrstr 1 failed\n", __func__);
+			return 1;
+		}
+		mcp = lws_nstrstr(t1, strlen(t1), "def", 3);
+		if (mcp != NULL) {
+			lwsl_err("%s: lws_nstrstr 2 failed\n", __func__);
+			return 1;
+		}
+		mcp = lws_nstrstr(t1, strlen(t1), "456", 3);
+		if (mcp != t1 + 6) {
+			lwsl_err("%s: lws_nstrstr 3 failed: %p\n", __func__, mcp);
+			return 1;
+		}
+		mcp = lws_nstrstr(t1, strlen(t1), "1", 1);
+		if (mcp != t1 + 3) {
+			lwsl_err("%s: lws_nstrstr 4 failed\n", __func__);
+			return 1;
+		}
+		mcp = lws_nstrstr(t1, strlen(t1), "abc1234567", 10);
+		if (mcp != NULL) {
+			lwsl_err("%s: lws_nstrstr 5 failed\n", __func__);
+			return 1;
+		}
+	}
+
+	/* sanity check lws_json_simple_find() */
+
+	{
+		static const char *t1 = "{\"myname1\":true,"
+					 "\"myname2\":\"string\", "
+					 "\"myname3\": 123}";
+		size_t alen;
+		const char *mcp;
+
+		mcp = lws_json_simple_find(t1, strlen(t1), "\"myname1\":", &alen);
+		if (mcp != t1 + 11 || alen != 4) {
+			lwsl_err("%s: lws_json_simple_find 1 failed: (%d) %s\n",
+				 __func__, (int)alen, mcp);
+			return 1;
+		}
+
+		mcp = lws_json_simple_find(t1, strlen(t1), "\"myname2\":", &alen);
+		if (mcp != t1 + 27 || alen != 6) {
+			lwsl_err("%s: lws_json_simple_find 2 failed\n", __func__);
+			return 1;
+		}
+
+		mcp = lws_json_simple_find(t1, strlen(t1), "\"myname3\":", &alen);
+		if (mcp != t1 + 47 || alen != 3) {
+			lwsl_err("%s: lws_json_simple_find 3 failed\n", __func__);
+			return 1;
+		}
+
+		mcp = lws_json_simple_find(t1, strlen(t1), "\"nope\":", &alen);
+		if (mcp != NULL) {
+			lwsl_err("%s: lws_json_simple_find 4 failed\n", __func__);
+			return 1;
+		}
+	}
+
 	p = lws_cmdline_option(argc, argv, "-s");
 
 	for (n = 0; n < (int)LWS_ARRAY_SIZE(tests); n++) {
@@ -414,7 +502,7 @@ int main(int argc, const char **argv)
 		memset(&ts, 0, sizeof(ts));
 		ts.start = tests[n].string;
 		ts.len = strlen(ts.start);
-		ts.flags = tests[n].flags;
+		ts.flags = (uint16_t)tests[n].flags;
 
 		do {
 			e = lws_tokenize(&ts);
@@ -463,7 +551,7 @@ int main(int argc, const char **argv)
 	if (p) {
 		ts.start = p;
 		ts.len = strlen(p);
-		ts.flags = flags;
+		ts.flags = (uint16_t)flags;
 
 		printf("\t{\n\t\t\"%s\",\n"
 		       "\t\texpected%d, LWS_ARRAY_SIZE(expected%d),\n\t\t",
@@ -518,6 +606,131 @@ int main(int argc, const char **argv)
 		} while (e > 0);
 
 		printf("\t}\n");
+	}
+
+#if defined(LWS_ROLE_H1) || defined(LWS_ROLE_H2)
+	{
+		time_t t;
+
+		if (lws_http_date_parse_unix("Tue, 15 Nov 1994 08:12:31 GMT", 29, &t)) {
+			lwsl_err("%s: date parse failed\n", __func__);
+			fail++;
+		} else {
+			/* lwsl_notice("%s: %llu\n", __func__, (unsigned long long)t); */
+			if (t != (time_t)784887151) {
+				lwsl_err("%s: date parse wrong\n", __func__);
+				fail++;
+			} else {
+				char s[30];
+
+				if (lws_http_date_render_from_unix(s, sizeof(s), &t)) {
+					lwsl_err("%s: failed date render\n", __func__);
+					fail++;
+				} else {
+					if (!strcmp(s, "Tue, 15 Nov 1994 08:12:31 GMT")) {
+						lwsl_err("%s: date render wrong\n", __func__);
+						fail++;
+					}
+				}
+			}
+		}
+	}
+#endif
+
+	{
+		char buf[24];
+		int m;
+
+		m = lws_humanize(buf, sizeof(buf), 0, humanize_schema_si);
+		if (m != 1 || strcmp(buf, "0")) {
+			lwsl_user("%s: humanize 1 fail '%s' (%d)\n", __func__, buf, m);
+			fail++;
+		}
+		m = lws_humanize(buf, sizeof(buf), 2, humanize_schema_si);
+		if (m != 1 || strcmp(buf, "2")) {
+			lwsl_user("%s: humanize 2 fail '%s' (%d)\n", __func__, buf, m);
+			fail++;
+		}
+		m = lws_humanize(buf, sizeof(buf), 999, humanize_schema_si);
+		if (m != 3 || strcmp(buf, "999")) {
+			lwsl_user("%s: humanize 3 fail '%s' (%d)\n", __func__, buf, m);
+			fail++;
+		}
+		m = lws_humanize(buf, sizeof(buf), 1000, humanize_schema_si);
+		if (m != 4 || strcmp(buf, "1000")) {
+			lwsl_user("%s: humanize 4 fail '%s' (%d)\n", __func__, buf, m);
+			fail++;
+		}
+		m = lws_humanize(buf, sizeof(buf), 1024, humanize_schema_si);
+		if (m != 7 || strcmp(buf, "1.000Ki")) {
+			lwsl_user("%s: humanize 5 fail '%s' (%d)\n", __func__, buf, m);
+			fail++;
+		}
+	}
+
+	if (lws_strcmp_wildcard("allied", 6, "allied")) {
+		lwsl_user("%s: wc 1 fail\n", __func__);
+		fail++;
+	}
+	if (lws_strcmp_wildcard("a*", 2, "allied")) {
+		lwsl_user("%s: wc 2 fail\n", __func__);
+		fail++;
+	}
+	if (lws_strcmp_wildcard("all*", 4, "allied")) {
+		lwsl_user("%s: wc 3 fail\n", __func__);
+		fail++;
+	}
+	if (lws_strcmp_wildcard("all*d", 5, "allied")) {
+		lwsl_user("%s: wc 4 fail\n", __func__);
+		fail++;
+	}
+	if (!lws_strcmp_wildcard("b*", 2, "allied")) {
+		lwsl_user("%s: wc 5 fail\n", __func__);
+		fail++;
+	}
+	if (!lws_strcmp_wildcard("b*ed", 4, "allied")) {
+		lwsl_user("%s: wc 6 fail\n", __func__);
+		fail++;
+	}
+	if (!lws_strcmp_wildcard("allie", 5, "allied")) {
+		lwsl_user("%s: wc 7 fail\n", __func__);
+		fail++;
+	}
+	if (lws_strcmp_wildcard("allie*", 6, "allied")) {
+		lwsl_user("%s: wc 8 fail\n", __func__);
+		fail++;
+	}
+	if (lws_strcmp_wildcard("*llie*", 6, "allied")) {
+		lwsl_user("%s: wc 9 fail\n", __func__);
+		fail++;
+	}
+	if (lws_strcmp_wildcard("*llied", 6, "allied")) {
+		lwsl_user("%s: wc 10 fail\n", __func__);
+		fail++;
+	}
+	if (!lws_strcmp_wildcard("*llie", 5, "allied")) {
+		lwsl_user("%s: wc 11 fail\n", __func__);
+		fail++;
+	}
+	if (!lws_strcmp_wildcard("*nope", 5, "allied")) {
+		lwsl_user("%s: wc 12 fail\n", __func__);
+		fail++;
+	}
+	if (lws_strcmp_wildcard("*li*", 4, "allied")) {
+		lwsl_user("%s: wc 13 fail\n", __func__);
+		fail++;
+	}
+	if (lws_strcmp_wildcard("*", 1, "allied")) {
+		lwsl_user("%s: wc 14 fail\n", __func__);
+		fail++;
+	}
+	if (lws_strcmp_wildcard("*abc*d", 6, "xxabyyabcdd")) {
+		lwsl_user("%s: wc 15 fail\n", __func__);
+		fail++;
+	}
+	if (lws_strcmp_wildcard("ssproxy.n.cn.*", 14, "ssproxy.n.cn.failures")) {
+		lwsl_user("%s: wc 16 fail\n", __func__);
+		fail++;
 	}
 
 	lwsl_user("Completed: PASS: %d, FAIL: %d\n", ok, fail);

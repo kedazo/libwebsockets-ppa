@@ -1,7 +1,7 @@
  /*
  * libwebsockets - small server side websockets and web server implementation
  *
- * Copyright (C) 2010 - 2019 Andy Green <andy@warmcat.com>
+ * Copyright (C) 2010 - 2021 Andy Green <andy@warmcat.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -51,7 +51,7 @@ struct lws_event_loop_ops {
 	/* event loop accept processing  */
 	int (*sock_accept)(struct lws *wsi);
 	/* control wsi active events  */
-	void (*io)(struct lws *wsi, int flags);
+	void (*io)(struct lws *wsi, unsigned int flags);
 	/* run the event loop for a pt */
 	void (*run_pt)(struct lws_context *context, int tsi);
 	/* called before pt is destroyed */
@@ -60,27 +60,9 @@ struct lws_event_loop_ops {
 	void (*destroy_wsi)(struct lws *wsi);
 
 	uint8_t	flags;
+
+	uint16_t	evlib_size_ctx;
+	uint16_t	evlib_size_pt;
+	uint16_t	evlib_size_vh;
+	uint16_t	evlib_size_wsi;
 };
-
-/* bring in event libs private declarations */
-
-#if defined(LWS_WITH_POLL)
-#include "private-lib-event-libs-poll.h"
-#endif
-
-#if defined(LWS_WITH_LIBUV)
-#include "private-lib-event-libs-libuv.h"
-#endif
-
-#if defined(LWS_WITH_LIBEVENT)
-#include "private-lib-event-libs-libevent.h"
-#endif
-
-#if defined(LWS_WITH_GLIB)
-#include "private-lib-event-libs-glib.h"
-#endif
-
-#if defined(LWS_WITH_LIBEV)
-#include "private-lib-event-libs-libev.h"
-#endif
-

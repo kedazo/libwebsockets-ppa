@@ -52,16 +52,16 @@ lws_extension_pmdeflate_restrict_args(struct lws *wsi,
 
 	/* cap the RX buf at the nearest power of 2 to protocol rx buf */
 
-	n = wsi->context->pt_serv_buf_size;
-	if (wsi->protocol->rx_buffer_size)
-		n = (int)wsi->protocol->rx_buffer_size;
+	n = (int)wsi->a.context->pt_serv_buf_size;
+	if (wsi->a.protocol->rx_buffer_size)
+		n = (int)wsi->a.protocol->rx_buffer_size;
 
 	extra = 7;
 	while (n >= 1 << (extra + 1))
 		extra++;
 
 	if (extra < priv->args[PMD_RX_BUF_PWR2]) {
-		priv->args[PMD_RX_BUF_PWR2] = extra;
+		priv->args[PMD_RX_BUF_PWR2] = (unsigned char)extra;
 		lwsl_info(" Capping pmd rx to %d\n", 1 << extra);
 	}
 }
@@ -108,7 +108,7 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
 		lwsl_ext("%s: option set: idx %d, %s, len %d\n", __func__,
 			 oa->option_index, oa->start, oa->len);
 		if (oa->start)
-			priv->args[oa->option_index] = atoi(oa->start);
+			priv->args[oa->option_index] = (unsigned char)atoi(oa->start);
 		else
 			priv->args[oa->option_index] = 1;
 
@@ -129,14 +129,14 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
 	case LWS_EXT_CB_CLIENT_CONSTRUCT:
 	case LWS_EXT_CB_CONSTRUCT:
 
-		n = context->pt_serv_buf_size;
-		if (wsi->protocol->rx_buffer_size)
-			n = (int)wsi->protocol->rx_buffer_size;
+		n = (int)context->pt_serv_buf_size;
+		if (wsi->a.protocol->rx_buffer_size)
+			n = (int)wsi->a.protocol->rx_buffer_size;
 
 		if (n < 128) {
 			lwsl_info(" permessage-deflate requires the protocol "
 				  "(%s) to have an RX buffer >= 128\n",
-				  wsi->protocol->name);
+				  wsi->a.protocol->name);
 			return -1;
 		}
 
@@ -192,10 +192,20 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
 		lwsl_ext(" %s: LWS_EXT_CB_PAYLOAD_RX: in %d, existing in %d\n",
 			 __func__, pmdrx->eb_in.len, priv->rx.avail_in);
 
-		/* if this frame is not marked as compressed, we ignore it */
+		/*
+		 * If this frame is not marked as compressed,
+		 * there is nothing we should do with it
+		 */
 
 		if (!(wsi->ws->rsv_first_msg & 0x40) || (wsi->ws->opcode & 8))
-			return PMDR_DID_NOTHING;
+			/*
+			 * This is a bit different than DID_NOTHING... we have
+			 * identified using ext-private bits in the packet, or
+			 * by it being a control fragment that we SHOULD not do
+			 * anything to it, parent should continue as if we
+			 * processed it
+			 */
+			return PMDR_NOTHING_WE_SHOULD_DO;
 
 		/*
 		 * we shouldn't come back in here if we already applied the
@@ -221,8 +231,8 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
 			priv->rx_init = 1;
 			if (!priv->buf_rx_inflated)
 				priv->buf_rx_inflated = lws_malloc(
-					LWS_PRE + 7 + 5 +
-					    (1 << priv->args[PMD_RX_BUF_PWR2]),
+					(unsigned int)(LWS_PRE + 7 + 5 +
+					    (1 << priv->args[PMD_RX_BUF_PWR2])),
 					    "pmd rx inflate buf");
 			if (!priv->buf_rx_inflated) {
 				lwsl_err("%s: OOM\n", __func__);
@@ -245,12 +255,12 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
 #endif
 		if (!priv->rx.avail_in && pmdrx->eb_in.token && pmdrx->eb_in.len) {
 			priv->rx.next_in = (unsigned char *)pmdrx->eb_in.token;
-			priv->rx.avail_in = pmdrx->eb_in.len;
+			priv->rx.avail_in = (uInt)pmdrx->eb_in.len;
 		}
 
 		priv->rx.next_out = priv->buf_rx_inflated + LWS_PRE;
 		pmdrx->eb_out.token = priv->rx.next_out;
-		priv->rx.avail_out = 1 << priv->args[PMD_RX_BUF_PWR2];
+		priv->rx.avail_out = (uInt)(1 << priv->args[PMD_RX_BUF_PWR2]);
 
 		/* so... if...
 		 *
@@ -300,8 +310,8 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
 		 */
 
 		pmdrx->eb_in.token = pmdrx->eb_in.token +
-				         (pmdrx->eb_in.len - priv->rx.avail_in);
-		pmdrx->eb_in.len = priv->rx.avail_in;
+				         ((unsigned int)pmdrx->eb_in.len - (unsigned int)priv->rx.avail_in);
+		pmdrx->eb_in.len = (int)priv->rx.avail_in;
 
 		lwsl_debug("%s: %d %d %d %d %d\n", __func__,
 				priv->rx.avail_in,
@@ -343,7 +353,7 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
 
 		pmdrx->eb_out.len = lws_ptr_diff(priv->rx.next_out,
 						 pmdrx->eb_out.token);
-		priv->count_rx_between_fin += pmdrx->eb_out.len;
+		priv->count_rx_between_fin = priv->count_rx_between_fin + (size_t)pmdrx->eb_out.len;
 
 		lwsl_ext("  %s: RX leaving with new effbuff len %d, "
 			 "rx.avail_in=%d, TOTAL RX since FIN %lu\n",
@@ -379,7 +389,7 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
 			n = deflateInit2(&priv->tx, priv->args[PMD_COMP_LEVEL],
 					 Z_DEFLATED,
 					 -priv->args[PMD_SERVER_MAX_WINDOW_BITS +
-						(wsi->vhost->listen_port <= 0)],
+						(wsi->a.vhost->listen_port <= 0)],
 					 priv->args[PMD_MEM_LEVEL],
 					 Z_DEFAULT_STRATEGY);
 			if (n != Z_OK) {
@@ -390,8 +400,8 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
 		}
 
 		if (!priv->buf_tx_deflated)
-			priv->buf_tx_deflated = lws_malloc(LWS_PRE + 7 + 5 +
-					    (1 << priv->args[PMD_TX_BUF_PWR2]),
+			priv->buf_tx_deflated = lws_malloc((unsigned int)(LWS_PRE + 7 + 5 +
+					    (1 << priv->args[PMD_TX_BUF_PWR2])),
 					    "pmd tx deflate buf");
 		if (!priv->buf_tx_deflated) {
 			lwsl_err("%s: OOM\n", __func__);
@@ -404,22 +414,23 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
 
 			assert(!priv->tx.avail_in);
 
-			priv->count_tx_between_fin += pmdrx->eb_in.len;
+			priv->count_tx_between_fin = priv->count_tx_between_fin + (size_t)pmdrx->eb_in.len;
 			lwsl_ext("%s: TX: eb_in length %d, "
 				    "TOTAL TX since FIN: %d\n", __func__,
 				    pmdrx->eb_in.len,
 				    (int)priv->count_tx_between_fin);
 			priv->tx.next_in = (unsigned char *)pmdrx->eb_in.token;
-			priv->tx.avail_in = pmdrx->eb_in.len;
+			priv->tx.avail_in = (uInt)pmdrx->eb_in.len;
 		}
 
 		priv->tx.next_out = priv->buf_tx_deflated + LWS_PRE + 5;
 		pmdrx->eb_out.token = priv->tx.next_out;
-		priv->tx.avail_out = 1 << priv->args[PMD_TX_BUF_PWR2];
+		priv->tx.avail_out = (uInt)(1 << priv->args[PMD_TX_BUF_PWR2]);
 
-		pen = penbits = 0;
+		pen = 0;
+		penbits = 0;
 		deflatePending(&priv->tx, &pen, &penbits);
-		pen |= penbits;
+		pen = pen | (unsigned int)penbits;
 
 		if (!priv->tx.avail_in && (len & LWS_WRITE_NO_FIN)) {
 			lwsl_ext("%s: no available in, pen: %u\n", __func__, pen);
@@ -482,8 +493,8 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
 		 */
 
 		pmdrx->eb_in.token = pmdrx->eb_in.token +
-					(pmdrx->eb_in.len - priv->tx.avail_in);
-		pmdrx->eb_in.len = priv->tx.avail_in;
+					((unsigned int)pmdrx->eb_in.len - (unsigned int)priv->tx.avail_in);
+		pmdrx->eb_in.len = (int)priv->tx.avail_in;
 
 		priv->compressed_out = 1;
 		pmdrx->eb_out.len = lws_ptr_diff(priv->tx.next_out,
@@ -512,8 +523,8 @@ lws_extension_callback_pm_deflate(struct lws_context *context,
 		 * use of CONTINUATION when the first real write does come.
 		 */
 		if (priv->tx_first_frame_type & 0xf) {
-			*pmdrx->eb_in.token = ((*pmdrx->eb_in.token) & ~0xf) |
-					(priv->tx_first_frame_type & 0xf);
+			*pmdrx->eb_in.token = (unsigned char)((((unsigned char)*pmdrx->eb_in.token) & (unsigned char)~0xf) |
+				((unsigned char)priv->tx_first_frame_type & (unsigned char)0xf));
 			/*
 			 * We have now written the "first" fragment, only
 			 * do that once

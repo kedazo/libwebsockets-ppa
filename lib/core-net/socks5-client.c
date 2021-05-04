@@ -61,9 +61,9 @@ lws_set_socks(struct lws_vhost *vhost, const char *socks)
 			}
 
 			lws_strncpy(vhost->socks_user, socks,
-				    p_colon - socks + 1);
+				    lws_ptr_diff_size_t(p_colon, socks) + 1);
 			lws_strncpy(vhost->socks_password, p_colon + 1,
-				p_at - (p_colon + 1) + 1);
+				lws_ptr_diff_size_t(p_at, (p_colon + 1)) + 1);
 		}
 
 		lwsl_info(" Socks auth, user: %s, password: %s\n",
@@ -82,7 +82,7 @@ lws_set_socks(struct lws_vhost *vhost, const char *socks)
 	} else {
 		if (p_colon) {
 			*p_colon = '\0';
-			vhost->socks_proxy_port = atoi(p_colon + 1);
+			vhost->socks_proxy_port = (unsigned int)atoi(p_colon + 1);
 		}
 	}
 
@@ -99,7 +99,7 @@ int
 lws_socks5c_generate_msg(struct lws *wsi, enum socks_msg_type type,
 			 ssize_t *msg_len)
 {
-	struct lws_context *context = wsi->context;
+	struct lws_context *context = wsi->a.context;
 	struct lws_context_per_thread *pt = &context->pt[(int)wsi->tsi];
 	uint8_t *p = pt->serv_buf, *end = &p[context->pt_serv_buf_size];
 	ssize_t n, passwd_len;
@@ -121,8 +121,8 @@ lws_socks5c_generate_msg(struct lws *wsi, enum socks_msg_type type,
 		break;
 
 	case SOCKS_MSG_USERNAME_PASSWORD:
-		n = strlen(wsi->vhost->socks_user);
-		passwd_len = strlen(wsi->vhost->socks_password);
+		n = (ssize_t)strlen(wsi->a.vhost->socks_user);
+		passwd_len = (ssize_t)strlen(wsi->a.vhost->socks_password);
 
 		if (n > 254 || passwd_len > 254)
 			return 1;
@@ -134,21 +134,21 @@ lws_socks5c_generate_msg(struct lws *wsi, enum socks_msg_type type,
 		*p++ = SOCKS_SUBNEGOTIATION_VERSION_1;
 
 		/* length of the user name */
-		*p++ = n;
+		*p++ = (uint8_t)n;
 		/* user name */
-		memcpy(p, wsi->vhost->socks_user, n);
-		p += n;
+		memcpy(p, wsi->a.vhost->socks_user, (size_t)n);
+		p += (uint8_t)n;
 
 		/* length of the password */
-		*p++ = passwd_len;
+		*p++ = (uint8_t)passwd_len;
 
 		/* password */
-		memcpy(p, wsi->vhost->socks_password, passwd_len);
+		memcpy(p, wsi->a.vhost->socks_password, (size_t)passwd_len);
 		p += passwd_len;
 		break;
 
 	case SOCKS_MSG_CONNECT:
-		n = strlen(wsi->stash->cis[CIS_ADDRESS]);
+		n = (ssize_t)strlen(wsi->stash->cis[CIS_ADDRESS]);
 
 		if (n > 254 || lws_ptr_diff(end, p) < 5 + n + 2)
 			return 1;
@@ -164,17 +164,17 @@ lws_socks5c_generate_msg(struct lws *wsi, enum socks_msg_type type,
 		/* address type */
 		*p++ = SOCKS_ATYP_DOMAINNAME;
 		/* length of ---> */
-		*p++ = n;
+		*p++ = (uint8_t)n;
 
 		/* the address we tell SOCKS proxy to connect to */
-		memcpy(p, wsi->stash->cis[CIS_ADDRESS], n);
+		memcpy(p, wsi->stash->cis[CIS_ADDRESS], (size_t)n);
 		p += n;
 
-		net_num = htons(wsi->c_port);
+		net_num = (short)htons(wsi->c_port);
 
 		/* the port we tell SOCKS proxy to connect to */
-		*p++ = cp[0];
-		*p++ = cp[1];
+		*p++ = (uint8_t)cp[0];
+		*p++ = (uint8_t)cp[1];
 
 		break;
 
@@ -219,12 +219,12 @@ lws_socks5c_ads_server(struct lws_vhost *vh,
 int
 lws_socks5c_greet(struct lws *wsi, const char **pcce)
 {
-	struct lws_context_per_thread *pt = &wsi->context->pt[(int)wsi->tsi];
+	struct lws_context_per_thread *pt = &wsi->a.context->pt[(int)wsi->tsi];
 	ssize_t plen;
 	int n;
 
 	/* socks proxy */
-	if (!wsi->vhost->socks_proxy_port)
+	if (!wsi->a.vhost->socks_proxy_port)
 		return 0;
 
 	if (lws_socks5c_generate_msg(wsi, SOCKS_MSG_GREETING, &plen)) {
@@ -232,7 +232,7 @@ lws_socks5c_greet(struct lws *wsi, const char **pcce)
 		return -1;
 	}
 	// lwsl_hexdump_notice(pt->serv_buf, plen);
-	n = send(wsi->desc.sockfd, (char *)pt->serv_buf, plen,
+	n = (int)send(wsi->desc.sockfd, (char *)pt->serv_buf, (size_t)plen,
 		 MSG_NOSIGNAL);
 	if (n < 0) {
 		lwsl_debug("ERROR writing socks greeting\n");
@@ -241,7 +241,7 @@ lws_socks5c_greet(struct lws *wsi, const char **pcce)
 	}
 
 	lws_set_timeout(wsi, PENDING_TIMEOUT_AWAITING_SOCKS_GREETING_REPLY,
-			wsi->context->timeout_secs);
+			(int)wsi->a.context->timeout_secs);
 
 	lwsi_set_state(wsi, LRS_WAITING_SOCKS_GREETING_REPLY);
 
@@ -252,7 +252,7 @@ int
 lws_socks5c_handle_state(struct lws *wsi, struct lws_pollfd *pollfd,
 			 const char **pcce)
 {
-	struct lws_context_per_thread *pt = &wsi->context->pt[(int)wsi->tsi];
+	struct lws_context_per_thread *pt = &wsi->a.context->pt[(int)wsi->tsi];
 	int conn_mode = 0, pending_timeout = 0;
 	ssize_t len;
 	int n;
@@ -260,14 +260,14 @@ lws_socks5c_handle_state(struct lws *wsi, struct lws_pollfd *pollfd,
 	/* handle proxy hung up on us */
 
 	if (pollfd->revents & LWS_POLLHUP) {
-		lwsl_warn("SOCKS connection %p (fd=%d) dead\n",
-			  (void *)wsi, pollfd->fd);
+		lwsl_warn("SOCKS conn %s (fd=%d) dead\n",
+			  lws_wsi_tag(wsi), pollfd->fd);
 		*pcce = "socks conn dead";
 		return LW5CHS_RET_BAIL3;
 	}
 
-	n = recv(wsi->desc.sockfd, pt->serv_buf,
-		 wsi->context->pt_serv_buf_size, 0);
+	n = (int)recv(wsi->desc.sockfd, pt->serv_buf,
+		 wsi->a.context->pt_serv_buf_size, 0);
 	if (n < 0) {
 		if (LWS_ERRNO == LWS_EAGAIN) {
 			lwsl_debug("SOCKS read EAGAIN, retrying\n");
@@ -330,7 +330,7 @@ socks_send_msg_fail:
 			   PENDING_TIMEOUT_AWAITING_SOCKS_CONNECT_REPLY;
 socks_send:
 		// lwsl_hexdump_notice(pt->serv_buf, len);
-		n = send(wsi->desc.sockfd, (char *)pt->serv_buf, len,
+		n = (int)send(wsi->desc.sockfd, (char *)pt->serv_buf, (size_t)len,
 			 MSG_NOSIGNAL);
 		if (n < 0) {
 			lwsl_debug("ERROR writing to socks proxy\n");
@@ -338,9 +338,9 @@ socks_send:
 			return LW5CHS_RET_BAIL3;
 		}
 
-		lws_set_timeout(wsi, pending_timeout,
-				wsi->context->timeout_secs);
-		lwsi_set_state(wsi, conn_mode);
+		lws_set_timeout(wsi, (enum pending_timeout)pending_timeout,
+				(int)wsi->a.context->timeout_secs);
+		lwsi_set_state(wsi, (lws_wsi_state_t)conn_mode);
 		break;
 
 socks_reply_fail:
@@ -359,13 +359,13 @@ socks_reply_fail:
 #if defined(LWS_ROLE_H1) || defined(LWS_ROLE_H2)
 		if (lwsi_role_http(wsi) &&
 		    lws_hdr_simple_create(wsi, _WSI_TOKEN_CLIENT_PEER_ADDRESS,
-					  wsi->vhost->socks_proxy_address)) {
+					  wsi->a.vhost->socks_proxy_address)) {
 			*pcce = "socks connect fail";
 			return LW5CHS_RET_BAIL3;
 		}
 #endif
 
-		wsi->c_port = wsi->vhost->socks_proxy_port;
+		wsi->c_port = (uint16_t)wsi->a.vhost->socks_proxy_port;
 
 		/* clear his proxy connection timeout */
 		lws_set_timeout(wsi, NO_PENDING_TIMEOUT, 0);

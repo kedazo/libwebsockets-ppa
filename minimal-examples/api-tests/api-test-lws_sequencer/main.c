@@ -90,7 +90,7 @@ callback_http(struct lws *wsi, enum lws_callback_reasons reason, void *user,
 	case LWS_CALLBACK_ESTABLISHED_CLIENT_HTTP:
 		if (!s)
 			return 1;
-		s->http_resp = lws_http_client_http_response(wsi);
+		s->http_resp = (int)lws_http_client_http_response(wsi);
 		lwsl_info("Connected with server response: %d\n", s->http_resp);
 		break;
 
@@ -346,7 +346,7 @@ main(int argc, const char **argv)
 		       LWS_SERVER_OPTION_EXPLICIT_VHOSTS;
 	info.protocols = protocols;
 
-#if defined(LWS_WITH_MBEDTLS)
+#if defined(LWS_WITH_MBEDTLS) || defined(USE_WOLFSSL)
 	/*
 	 * OpenSSL uses the system trust store.  mbedTLS has to be told which
 	 * CA to trust explicitly.

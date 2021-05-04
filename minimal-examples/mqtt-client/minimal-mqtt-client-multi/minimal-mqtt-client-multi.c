@@ -11,6 +11,12 @@
 #include <libwebsockets.h>
 #include <string.h>
 #include <signal.h>
+#if defined(WIN32)
+#define HAVE_STRUCT_TIMESPEC
+#if defined(pid_t)
+#undef pid_t
+#endif
+#endif
 #include <pthread.h>
 #include <assert.h>
 
@@ -279,7 +285,7 @@ callback_mqtt(struct lws *wsi, enum lws_callback_reasons reason,
 					(int)chunk, (int)pss->pos);
 
 			if (lws_mqtt_client_send_publish(wsi, &pss->pub_param,
-					test_string + pss->pos, chunk,
+					test_string + pss->pos, (uint32_t)chunk,
 					(pss->pos + chunk == TEST_STRING_LEN))) {
 				lwsl_notice("%s: publish failed\n", __func__);
 				return -1;
@@ -411,7 +417,7 @@ int main(int argc, const char **argv)
 	info.fd_limit_per_thread = 1 + COUNT + 1;
 	info.retry_and_idle_policy = &retry;
 
-#if defined(LWS_WITH_MBEDTLS)
+#if defined(LWS_WITH_MBEDTLS) || defined(USE_WOLFSSL)
 	/*
 	 * OpenSSL uses the system trust store.  mbedTLS has to be told which
 	 * CA to trust explicitly.
