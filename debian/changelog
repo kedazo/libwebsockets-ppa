@@ -1,3 +1,10 @@
+libwebsockets (4.2.0-20) xenial; urgency=medium
+
+  * Team upload.
+  * Release for xenial.
+
+ -- David Kedves <kedz@kedz.eu>  Wed, 05 May 2021 09:38:34 +0200
+
 libwebsockets (4.2.0-19) hirsute; urgency=medium
 
   * Team upload.
