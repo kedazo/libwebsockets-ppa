@@ -1,4 +1,4 @@
-libwebsockets.so.18 libwebsockets16 #MINVER#
+libwebsockets.so.18 libwebsockets18 #MINVER#
  __lws_close_free_wsi_final@Base 4.2.0-1
  __lws_sul_insert@Base 4.2.0-1
  __lws_sul_service_ripe@Base 4.2.0-1
