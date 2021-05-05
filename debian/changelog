@@ -1,3 +1,45 @@
+libwebsockets (4.2.0-19) hirsute; urgency=medium
+
+  * Team upload.
+  * Release for hirsute.
+
+ -- David Kedves <kedz@kedz.eu>  Wed, 05 May 2021 09:30:40 +0200
+
+libwebsockets (4.2.0-18) groovy; urgency=medium
+
+  * Team upload.
+  * Release for groovy.
+
+ -- David Kedves <kedz@kedz.eu>  Wed, 05 May 2021 09:30:32 +0200
+
+libwebsockets (4.2.0-17) focal; urgency=medium
+
+  * Team upload.
+  * Release for focal.
+
+ -- David Kedves <kedz@kedz.eu>  Wed, 05 May 2021 09:30:24 +0200
+
+libwebsockets (4.2.0-16) eoan; urgency=medium
+
+  * Team upload.
+  * Release for eoan.
+
+ -- David Kedves <kedz@kedz.eu>  Wed, 05 May 2021 09:30:16 +0200
+
+libwebsockets (4.2.0-15) bionic; urgency=medium
+
+  * Team upload.
+  * Release for bionic.
+
+ -- David Kedves <kedz@kedz.eu>  Wed, 05 May 2021 09:30:09 +0200
+
+libwebsockets (4.2.0-14) xenial; urgency=medium
+
+  * Team upload.
+  * Release for xenial.
+
+ -- David Kedves <kedz@kedz.eu>  Wed, 05 May 2021 09:30:01 +0200
+
 libwebsockets (4.2.0-13) hirsute; urgency=medium
 
   * Team upload.

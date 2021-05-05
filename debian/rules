@@ -10,9 +10,7 @@
 DEB_BUILD_MAINT_OPTIONS=	hardening=+all future=+lfs
 export DEB_BUILD_MAINT_OPTIONS
 
-# TODO: remove -Wno-error=format-truncation and -Wno-error=format-overflow on
-# next upstream release
-DEB_CFLAGS_MAINT_APPEND=	-fno-strict-aliasing -Wno-error=format-truncation -Wno-error=format-overflow
+DEB_CFLAGS_MAINT_APPEND=-fPIC -fno-strict-aliasing
 export DEB_CFLAGS_MAINT_APPEND
 
 arch?=		$(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
