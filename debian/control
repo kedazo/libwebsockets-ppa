@@ -2,7 +2,7 @@ Source: libwebsockets
 Section: libs
 Priority: optional
 Maintainer: David Kedves <kedazo@severalnines.com>
-Build-Depends: debhelper-compat (= 11), cmake, libcap-dev [linux-any],
+Build-Depends: debhelper, cmake, libcap-dev [linux-any],
  libev-dev, libssl-dev, libuv1-dev, openssl, zlib1g-dev
 Standards-Version: 4.5.0
 Homepage: https://libwebsockets.org/
